@@ -1,9 +1,12 @@
 apply plugin: 'com.android.application'
 
 android {
+    compileSdk 34 
     namespace "com.watersystem.app"
     compileSdkVersion rootProject.ext.compileSdkVersion
     defaultConfig {
+        targetSdk 34
+        minSdk 23
         applicationId "com.watersystem.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
@@ -40,6 +43,7 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+    classpath "com.android.tools.build:gradle:8.1.1"
 }
 
 apply from: 'capacitor.build.gradle'
