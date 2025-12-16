@@ -1,5 +1,6 @@
 ext {
     minSdkVersion = 23
+    javaVersion = JavaVersion.VERSION_17
     // Appflow runner’s Android SDK 35 appears to be broken (aapt2 can't load android-35/android.jar).
     // Use API 34 for now, and patch Capacitor’s API-35-only symbols at install time (postinstall).
     compileSdkVersion = 34
