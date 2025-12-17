@@ -1,6 +1,5 @@
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
-import { pushNotificationService } from './pushNotifications';
 import type { Device } from '@/types';
 
 class BackgroundMonitorService {
@@ -22,9 +21,6 @@ class BackgroundMonitorService {
 
     this.devices = devices;
     this.isMonitoring = true;
-
-    // Initialize push notifications
-    await pushNotificationService.initialize();
 
     // Initialize device states
     devices.forEach(device => {
@@ -161,11 +157,9 @@ class BackgroundMonitorService {
   }
 
   private async sendNotification(title: string, body: string): Promise<void> {
-    try {
-      await pushNotificationService.sendLocalNotification(title, body);
-    } catch (error) {
-      console.error('Failed to send notification:', error);
-    }
+    // Notifications removed by request.
+    void title;
+    void body;
   }
 }
 

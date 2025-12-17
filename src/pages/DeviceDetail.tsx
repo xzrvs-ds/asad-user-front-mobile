@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -40,7 +40,6 @@ import { useLanguageStore } from '@/store/languageStore';
 import { useDevices } from '@/hooks/useDevices';
 import { socketManager } from '@/lib/socket';
 import { useVoiceCommand } from '@/hooks/useVoiceCommand';
-import { pushNotificationService } from '@/lib/pushNotifications';
 import { motion } from 'framer-motion';
 import type { Device, User } from '@/types';
 
@@ -73,6 +72,98 @@ export const DeviceDetail: React.FC = () => {
   const ultrasonicEnabled = device?.ultrasonic ?? true;
   const [isUltrasonicBlinkOn, setIsUltrasonicBlinkOn] = useState(false);
 
+  // Manual mode timer countdown (UI side)
+  const [timerRemaining, setTimerRemaining] = useState<number>(0);
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+
+  const clearTimerTickers = useCallback(() => {
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+    if (timerRefetchTimeoutRef.current) {
+      clearTimeout(timerRefetchTimeoutRef.current);
+      timerRefetchTimeoutRef.current = null;
+    }
+  }, []);
+
+  const formatTimer = useCallback((seconds: number) => {
+    const s = Math.max(0, seconds);
+    const mm = Math.floor(s / 60);
+    const ss = s % 60;
+    return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+  }, []);
+
+  // Countdown sync for MANUAL mode: decrement each second.
+  useEffect(() => {
+    if (ultrasonicEnabled) {
+      clearTimerTickers();
+      setTimerRemaining(0);
+      return;
+    }
+
+    const active = !!device?.timerActive;
+    const duration = device?.timerDuration ?? 0;
+
+    if (!active || duration <= 0) {
+      clearTimerTickers();
+      setTimerRemaining(0);
+      return;
+    }
+
+    setTimerRemaining(duration);
+    clearTimerTickers();
+    timerIntervalRef.current = setInterval(() => {
+      setTimerRemaining((prev) => Math.max(0, prev - 1));
+    }, 1000);
+
+    return () => clearTimerTickers();
+  }, [
+    ultrasonicEnabled,
+    device?.timerActive,
+    device?.timerDuration,
+    clearTimerTickers
+  ]);
+
+  // When countdown ends: set OFF locally, then refetch once after 1s.
+  useEffect(() => {
+    if (ultrasonicEnabled) return;
+    if (!device?.timerActive) return;
+    if (timerRemaining > 0) return;
+    if (!device || !id) return;
+
+    clearTimerTickers();
+
+    const optimistic: Device = {
+      ...device,
+      timerActive: false,
+      timerDuration: 0,
+      motorState: 'OFF'
+    };
+    setDevice(optimistic);
+    updateDevice(optimistic);
+
+    timerRefetchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const data = await api.getDevice(id);
+        setDevice(data);
+        updateDevice(data);
+      } catch {
+        // ignore
+      }
+    }, 1000);
+  }, [
+    timerRemaining,
+    ultrasonicEnabled,
+    device,
+    id,
+    updateDevice,
+    clearTimerTickers
+  ]);
+
   // Control panel functions
   const handleMotorCommand = useCallback(
     async (motorState: 'ON' | 'OFF') => {
@@ -88,14 +179,6 @@ export const DeviceDetail: React.FC = () => {
         setDevice(updatedDevice);
         updateDevice(updatedDevice);
         await refetch();
-
-        // Send notification
-        await pushNotificationService.sendLocalNotification(
-          t('device.motor'),
-          motorState === 'ON'
-            ? `${device.name} - ${t('device.motorOn')}`
-            : `${device.name} - ${t('device.motorOff')}`
-        );
       } catch (err: any) {
         setCommandError(
           err.response?.data?.message || t('device.commandError')
@@ -332,6 +415,21 @@ export const DeviceDetail: React.FC = () => {
       setIsSendingCommand(true);
       setCommandError(null);
 
+      // MANUAL mode requirement:
+      // - start countdown immediately (00:05 -> 00:04 ...)
+      // - when saved, motor should be ON
+      if (!ultrasonicEnabled) {
+        const optimistic: Device = {
+          ...device,
+          timerActive: true,
+          timerDuration: timer,
+          motorState: 'ON'
+        };
+        setDevice(optimistic);
+        updateDevice(optimistic);
+        setTimerRemaining(timer);
+      }
+
       const updatedDevice = await api.sendDeviceCommand(id, { timer });
       setDevice(updatedDevice);
       updateDevice(updatedDevice);
@@ -363,23 +461,7 @@ export const DeviceDetail: React.FC = () => {
           // Listen for device updates - DARHOL yangilash (async yo'q)
           const handleUpdate = (updatedDevice: Device) => {
             if (updatedDevice._id === id) {
-              setDevice((prev) => {
-                const prevState = prev?.motorState;
-                // Notify if motor state changed (async, lekin state darhol yangilanadi)
-                if (prevState && prevState !== updatedDevice.motorState) {
-                  void pushNotificationService.sendLocalNotification(
-                    t('device.motor'),
-                    `${updatedDevice.name}: ${
-                      updatedDevice.motorState === 'ON'
-                        ? t('device.motorOn')
-                        : t('device.motorOff')
-                    }`,
-                    {
-                      deviceId: updatedDevice._id,
-                      motorState: updatedDevice.motorState
-                    }
-                  );
-                }
+              setDevice(() => {
                 return updatedDevice;
               });
               // Store'ni ham darhol yangilash
@@ -403,7 +485,6 @@ export const DeviceDetail: React.FC = () => {
               setDevice((prev) => {
                 if (!prev) return prev;
 
-                const prevStatus = prev.status;
                 const updated = {
                   ...prev,
                   status: data.status,
@@ -436,19 +517,6 @@ export const DeviceDetail: React.FC = () => {
 
                 // Store'ni ham darhol yangilash
                 updateDevice(updated);
-
-                // Notification'ni async qilamiz (state yangilanishi darhol)
-                if (prevStatus !== data.status) {
-                  void pushNotificationService.sendLocalNotification(
-                    t('device.status'),
-                    `${prev.name || ''}: ${
-                      data.status === 'ONLINE'
-                        ? t('dashboard.online')
-                        : t('dashboard.offline')
-                    }`,
-                    { deviceId: data.deviceId, status: data.status }
-                  );
-                }
 
                 return updated;
               });
@@ -836,12 +904,10 @@ export const DeviceDetail: React.FC = () => {
                       {t('common.save')}
                     </Button>
                   </div>
-                  {device.timerActive && device.timerDuration && (
+                  {device.timerActive && timerRemaining > 0 && (
                     <p className="text-xs text-primary mt-1">
                       {t('device.timerRemaining')}:{' '}
-                      {Math.floor((device.timerDuration || 0) / 60)}:
-                      {(device.timerDuration || 0) % 60 < 10 ? '0' : ''}
-                      {(device.timerDuration || 0) % 60}
+                      {formatTimer(timerRemaining)}
                     </p>
                   )}
                 </div>

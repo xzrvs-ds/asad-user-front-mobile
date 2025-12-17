@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';
 import { useLanguageStore } from '@/store/languageStore';
@@ -10,10 +10,27 @@ import { DeviceDetail } from './pages/DeviceDetail';
 import { Settings } from './pages/Settings';
 import { Reports } from './pages/Reports';
 import { socketManager } from './lib/socket';
-import { pushNotificationService } from './lib/pushNotifications';
 import { useThemeStore } from '@/store/themeStore';
 import { Layout } from './components/layout/Layout';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { notificationService } from '@/lib/notifications';
+
+const NavigationBridge = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ path: string }>;
+      if (ce.detail?.path) {
+        navigate(ce.detail.path);
+      }
+    };
+    window.addEventListener('app:navigate', handler as EventListener);
+    return () => window.removeEventListener('app:navigate', handler as EventListener);
+  }, [navigate]);
+
+  return null;
+};
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, isLoading, loadAuth } = useAuthStore();
@@ -28,6 +45,8 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       socketManager.connect().catch((error) => {
         console.error('Failed to connect WebSocket:', error);
       });
+      // Enable FCM push registration once user is authenticated
+      void notificationService.enablePushRegistration();
     } else {
       socketManager.disconnect();
     }
@@ -84,8 +103,8 @@ function App() {
     loadLanguage();
     // Load theme from storage
     loadTheme();
-    // Initialize push notifications
-    pushNotificationService.initialize();
+    // Setup notification listeners (does not request permission)
+    notificationService.initialize();
   }, [loadLanguage, loadTheme]);
 
   useEffect(() => {
@@ -96,6 +115,7 @@ function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
+        <NavigationBridge />
         <Routes>
           <Route
             path="/login"

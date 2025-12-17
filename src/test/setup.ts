@@ -18,21 +18,6 @@ vi.mock('@capacitor/preferences', () => ({
   },
 }));
 
-vi.mock('@capacitor/local-notifications', () => ({
-  LocalNotifications: {
-    requestPermissions: vi.fn(),
-    schedule: vi.fn(),
-  },
-}));
-
-vi.mock('@capacitor/push-notifications', () => ({
-  PushNotifications: {
-    requestPermissions: vi.fn(),
-    register: vi.fn(),
-    addListener: vi.fn(),
-  },
-}));
-
 // Cleanup after each test
 afterEach(() => {
   cleanup();
