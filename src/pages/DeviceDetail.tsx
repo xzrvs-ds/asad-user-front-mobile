@@ -63,7 +63,7 @@ export const DeviceDetail: React.FC = () => {
   const [isSendingCommand, setIsSendingCommand] = useState(false);
   const [commandError, setCommandError] = useState<string | null>(null);
   const [heightInput, setHeightInput] = useState('');
-  const [timerInput, setTimerInput] = useState('');
+  const [timerInput, setTimerInput] = useState(''); // Format: HH:MM (e.g., "01:15")
   const [, setIsHeightModalOpen] = useState(false);
   const [, setIsTimerModalOpen] = useState(false);
 
@@ -405,9 +405,33 @@ export const DeviceDetail: React.FC = () => {
   const handleSetTimer = async () => {
     if (!device || !id || !timerInput) return;
 
-    const timer = parseInt(timerInput);
-    if (isNaN(timer) || timer < 1) {
-      setCommandError('Invalid timer value');
+    // Convert time format (HH:MM) to seconds
+    // Example: "01:15" -> 1 hour 15 minutes = 4500 seconds
+    const timeParts = timerInput.split(':');
+    if (timeParts.length !== 2) {
+      setCommandError('Invalid time format. Use HH:MM');
+      return;
+    }
+
+    const hours = parseInt(timeParts[0], 10);
+    const minutes = parseInt(timeParts[1], 10);
+
+    if (
+      isNaN(hours) ||
+      isNaN(minutes) ||
+      hours < 0 ||
+      minutes < 0 ||
+      minutes >= 60
+    ) {
+      setCommandError('Invalid time value');
+      return;
+    }
+
+    // Convert to seconds: hours * 3600 + minutes * 60
+    const timer = hours * 3600 + minutes * 60;
+
+    if (timer <= 0) {
+      setCommandError('Timer must be greater than 0');
       return;
     }
 
@@ -879,14 +903,16 @@ export const DeviceDetail: React.FC = () => {
                     {t('device.setTimer')}
                   </p>
                   <div className="flex gap-2">
-                    <Input
-                      type="number"
-                      placeholder={t('device.timer')}
+                    <input
+                      type="time"
                       value={timerInput}
-                      onValueChange={setTimerInput}
-                      variant="bordered"
-                      className="flex-1"
-                      isDisabled={isDeviceOffline}
+                      onChange={(e) => setTimerInput(e.target.value)}
+                      disabled={isDeviceOffline}
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{
+                        minHeight: '2.5rem',
+                        fontSize: '1rem'
+                      }}
                     />
                     <Button
                       color="primary"
