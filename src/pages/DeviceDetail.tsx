@@ -63,7 +63,8 @@ export const DeviceDetail: React.FC = () => {
   const [isSendingCommand, setIsSendingCommand] = useState(false);
   const [commandError, setCommandError] = useState<string | null>(null);
   const [heightInput, setHeightInput] = useState('');
-  const [timerInput, setTimerInput] = useState(''); // Format: HH:MM (e.g., "01:15")
+  const [timerMinutes, setTimerMinutes] = useState('');
+  const [timerSeconds, setTimerSeconds] = useState('');
   const [, setIsHeightModalOpen] = useState(false);
   const [, setIsTimerModalOpen] = useState(false);
 
@@ -403,32 +404,28 @@ export const DeviceDetail: React.FC = () => {
   };
 
   const handleSetTimer = async () => {
-    if (!device || !id || !timerInput) return;
+    if (!device || !id) return;
 
-    // Convert time format (HH:MM) to seconds
-    // Example: "01:15" -> 1 hour 15 minutes = 4500 seconds
-    const timeParts = timerInput.split(':');
-    if (timeParts.length !== 2) {
-      setCommandError('Invalid time format. Use HH:MM');
-      return;
-    }
-
-    const hours = parseInt(timeParts[0], 10);
-    const minutes = parseInt(timeParts[1], 10);
+    // Convert minutes and seconds to total seconds
+    // Example: 5 minutes 30 seconds = 330 seconds
+    const minutes = parseInt(timerMinutes || '0', 10);
+    const seconds = parseInt(timerSeconds || '0', 10);
 
     if (
-      isNaN(hours) ||
       isNaN(minutes) ||
-      hours < 0 ||
+      isNaN(seconds) ||
       minutes < 0 ||
-      minutes >= 60
+      seconds < 0 ||
+      seconds >= 60
     ) {
-      setCommandError('Invalid time value');
+      setCommandError(
+        'Invalid time value. Minutes must be >= 0, seconds must be 0-59'
+      );
       return;
     }
 
-    // Convert to seconds: hours * 3600 + minutes * 60
-    const timer = hours * 3600 + minutes * 60;
+    // Convert to seconds: minutes * 60 + seconds
+    const timer = minutes * 60 + seconds;
 
     if (timer <= 0) {
       setCommandError('Timer must be greater than 0');
@@ -460,7 +457,8 @@ export const DeviceDetail: React.FC = () => {
       await refetch();
 
       setIsTimerModalOpen(false);
-      setTimerInput('');
+      setTimerMinutes('');
+      setTimerSeconds('');
     } catch (err: any) {
       setCommandError(err.response?.data?.message || t('device.commandError'));
     } finally {
@@ -902,26 +900,64 @@ export const DeviceDetail: React.FC = () => {
                   <p className="text-sm font-medium mb-2">
                     {t('device.setTimer')}
                   </p>
-                  <div className="flex gap-2">
-                    <input
-                      type="time"
-                      value={timerInput}
-                      onChange={(e) => setTimerInput(e.target.value)}
-                      disabled={isDeviceOffline}
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-                      style={{
-                        minHeight: '2.5rem',
-                        fontSize: '1rem'
-                      }}
-                    />
+                  <div className="space-y-2">
+                    <div className="flex gap-2 items-end">
+                      <Input
+                        type="number"
+                        label={t('device.timerMinutes') || 'Daqiqa'}
+                        placeholder="0"
+                        value={timerMinutes}
+                        onValueChange={setTimerMinutes}
+                        variant="bordered"
+                        className="flex-1"
+                        isDisabled={isDeviceOffline}
+                        min={0}
+                        classNames={{
+                          input: 'text-base',
+                          inputWrapper: 'h-12'
+                        }}
+                      />
+                      <span className="text-2xl font-bold text-gray-400 pb-2">
+                        :
+                      </span>
+                      <Input
+                        type="number"
+                        label={t('device.timerSeconds') || 'Soniya'}
+                        placeholder="0"
+                        value={timerSeconds}
+                        onValueChange={(value) => {
+                          // Limit seconds to 0-59
+                          const num = parseInt(value || '0', 10);
+                          if (isNaN(num) || num < 0) {
+                            setTimerSeconds('');
+                          } else if (num >= 60) {
+                            setTimerSeconds('59');
+                          } else {
+                            setTimerSeconds(value);
+                          }
+                        }}
+                        variant="bordered"
+                        className="flex-1"
+                        isDisabled={isDeviceOffline}
+                        min={0}
+                        max={59}
+                        classNames={{
+                          input: 'text-base',
+                          inputWrapper: 'h-12'
+                        }}
+                      />
+                    </div>
                     <Button
                       color="primary"
-                      className="text-white bg-primary"
+                      className="text-white bg-primary w-full"
                       onPress={() => {
-                        if (timerInput) {
+                        if (timerMinutes || timerSeconds) {
                           handleSetTimer();
                         } else {
-                          setCommandError(t('device.timerRequired'));
+                          setCommandError(
+                            t('device.timerRequired') ||
+                              'Timer qiymati kiritilishi kerak'
+                          );
                         }
                       }}
                       isDisabled={isDeviceOffline || isSendingCommand}

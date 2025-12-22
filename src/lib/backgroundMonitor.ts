@@ -5,12 +5,15 @@ import type { Device } from '@/types';
 class BackgroundMonitorService {
   private isMonitoring = false;
   private devices: Device[] = [];
-  private lastDeviceStates: Map<string, {
-    motorState: string;
-    status: string;
-    timerActive: boolean;
-    timerEndTime?: Date | string;
-  }> = new Map();
+  private lastDeviceStates: Map<
+    string,
+    {
+      motorState: string;
+      status: string;
+      timerActive: boolean;
+      timerEndTime?: Date | string;
+    }
+  > = new Map();
   private checkInterval: NodeJS.Timeout | null = null;
   private readonly CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
@@ -23,12 +26,14 @@ class BackgroundMonitorService {
     this.isMonitoring = true;
 
     // Initialize device states
-    devices.forEach(device => {
+    devices.forEach((device) => {
       this.lastDeviceStates.set(device._id, {
         motorState: device.motorState || 'OFF',
         status: device.status || 'OFFLINE',
         timerActive: device.timerActive || false,
-        timerEndTime: (device as any).timerEndTime ? new Date((device as any).timerEndTime) : undefined
+        timerEndTime: (device as any).timerEndTime
+          ? new Date((device as any).timerEndTime)
+          : undefined
       });
     });
 
@@ -47,7 +52,7 @@ class BackgroundMonitorService {
 
     // Start checking immediately if app is in background
     if (Capacitor.isNativePlatform()) {
-      App.getState().then(state => {
+      App.getState().then((state) => {
         if (!state.isActive) {
           this.startBackgroundCheck();
         }
@@ -92,7 +97,9 @@ class BackgroundMonitorService {
       const currentMotorState = device.motorState || 'OFF';
       const currentStatus = device.status || 'OFFLINE';
       const currentTimerActive = device.timerActive || false;
-      const currentTimerEndTime = (device as any).timerEndTime ? new Date((device as any).timerEndTime) : undefined;
+      const currentTimerEndTime = (device as any).timerEndTime
+        ? new Date((device as any).timerEndTime)
+        : undefined;
 
       // Notifications removed
 
@@ -105,8 +112,6 @@ class BackgroundMonitorService {
       });
     }
   }
-
 }
 
 export const backgroundMonitorService = new BackgroundMonitorService();
-
