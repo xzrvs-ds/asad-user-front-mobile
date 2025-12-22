@@ -89,18 +89,10 @@ class BackgroundMonitorService {
     }
 
     for (const device of this.devices) {
-      const lastState = this.lastDeviceStates.get(device._id);
-      
       const currentMotorState = device.motorState || 'OFF';
       const currentStatus = device.status || 'OFFLINE';
       const currentTimerActive = device.timerActive || false;
       const currentTimerEndTime = (device as any).timerEndTime ? new Date((device as any).timerEndTime) : undefined;
-
-      // Check if timer is 5 minutes or less (300 seconds)
-      const timerThreshold = 5 * 60 * 1000; // 5 minutes in milliseconds
-      const isTimer5Minutes = currentTimerActive && currentTimerEndTime && 
-        (currentTimerEndTime.getTime() - Date.now()) <= timerThreshold &&
-        (currentTimerEndTime.getTime() - Date.now()) > 0;
 
       // Notifications removed
 
