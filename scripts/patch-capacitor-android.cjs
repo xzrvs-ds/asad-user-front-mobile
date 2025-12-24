@@ -6,8 +6,8 @@
  * - Appflow runner SDK 35 android.jar appears broken (aapt2 can't load it)
  * - But Capacitor v7 references API 35-only symbols in CapacitorWebView.java
  * - We build against compileSdk=34 and use runtime checks + reflection instead.
- * - Capacitor v7.4.4 uses Java 21, but Gradle 7.5.1 doesn't support it
- * - We need to patch both Java files and build.gradle files to use Java 17
+ * - Capacitor v7.4.4 uses Java 21, but CI/CD muhitlarida Java 11 ishlatiladi
+ * - We need to patch both Java files and build.gradle files to use Java 11
  */
 const fs = require('fs');
 const path = require('path');
@@ -93,8 +93,10 @@ function patchBuildGradle() {
   const original = fs.readFileSync(buildGradleFile, 'utf8');
   let next = original;
 
-  // Replace JavaVersion.VERSION_21 with JavaVersion.VERSION_17
-  next = next.replace(/JavaVersion\.VERSION_21/g, 'JavaVersion.VERSION_17');
+  // Replace JavaVersion.VERSION_21 with JavaVersion.VERSION_11 (CI/CD uchun)
+  next = next.replace(/JavaVersion\.VERSION_21/g, 'JavaVersion.VERSION_11');
+  // Also replace VERSION_17 with VERSION_11 if present
+  next = next.replace(/JavaVersion\.VERSION_17/g, 'JavaVersion.VERSION_11');
 
   if (next !== original) {
     fs.writeFileSync(buildGradleFile, next, 'utf8');
@@ -145,8 +147,10 @@ function patchAllCapacitorPackages() {
       const original = fs.readFileSync(cordovaPluginsPath, 'utf8');
       let next = original;
 
-      // Replace JavaVersion.VERSION_21 with JavaVersion.VERSION_17
-      next = next.replace(/JavaVersion\.VERSION_21/g, 'JavaVersion.VERSION_17');
+      // Replace JavaVersion.VERSION_21 with JavaVersion.VERSION_11 (CI/CD uchun)
+      next = next.replace(/JavaVersion\.VERSION_21/g, 'JavaVersion.VERSION_11');
+      // Also replace VERSION_17 with VERSION_11 if present
+      next = next.replace(/JavaVersion\.VERSION_17/g, 'JavaVersion.VERSION_11');
 
       if (next !== original) {
         fs.writeFileSync(cordovaPluginsPath, next, 'utf8');
