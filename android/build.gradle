@@ -1,78 +1,62 @@
-apply plugin: 'com.android.application'
-apply plugin: 'kotlin-android'
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
 
-android {
-    namespace "com.watersystem.app"
-    compileSdkVersion rootProject.ext.compileSdkVersion
+buildscript {
+    
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.0.0'
+        classpath 'com.google.gms:google-services:4.3.15'
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.0'
 
-    defaultConfig {
-        applicationId "com.watersystem.app"
-        minSdkVersion rootProject.ext.minSdkVersion
-        targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+    }
+}
 
-        aaptOptions {
-            ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+apply from: "variables.gradle"
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+// Appflow runners commonly use JDK 17. Some dependencies (e.g. @capacitor/android v7)
+// default to Java 21 which causes: "invalid source release: 21".
+// Force Java 17 across Android modules to keep builds compatible in CI/Appflow.
+subprojects { subproject ->
+    afterEvaluate {
+        if (subproject.plugins.hasPlugin('com.android.application') || subproject.plugins.hasPlugin('com.android.library')) {
+            try {
+                subproject.android {
+                    compileOptions {
+                        sourceCompatibility JavaVersion.VERSION_17
+                        targetCompatibility JavaVersion.VERSION_17
+                    }
+                }
+            } catch (Throwable ignored) {
+                // no-op
+            }
         }
     }
 
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+    tasks.withType(JavaCompile).configureEach {
+        // Ensure `--release` doesn't get set to 21 by transitive gradle scripts
+        options.release = 17
     }
 
-    kotlinOptions {
-        jvmTarget = '17'
-        freeCompilerArgs += ["-Xjvm-default=all"]
-    }
-
-    kotlin {
-        jvmToolchain(17)
-    }
-
-    buildTypes {
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+    // If any module uses Kotlin, keep it aligned with Java 17 as well
+    tasks.matching { it.class.name == 'org.jetbrains.kotlin.gradle.tasks.KotlinCompile' }.configureEach {
+        kotlinOptions {
+            jvmTarget = '17'
         }
     }
 }
 
-repositories {
-    google()
-    mavenCentral()
-    flatDir {
-        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
-    }
-}
-
-dependencies {
-    implementation fileTree(include: ['*.jar'], dir: 'libs')
-
-    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
-    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
-    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
-    implementation "androidx.activity:activity:$androidxActivityVersion"
-    implementation "androidx.fragment:fragment:$androidxFragmentVersion"
-    implementation "androidx.webkit:webkit:$androidxWebkitVersion"
-
-    implementation project(':capacitor-android')
-    implementation project(':capacitor-cordova-android-plugins')
-
-    testImplementation "junit:junit:$junitVersion"
-    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
-    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
-}
-
-apply from: 'capacitor.build.gradle'
-
-try {
-    def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
-        apply plugin: 'com.google.gms.google-services'
-    }
-} catch(Exception e) {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+task clean(type: Delete) {
+    delete rootProject.buildDir
 }
