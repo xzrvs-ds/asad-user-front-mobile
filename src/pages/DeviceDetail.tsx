@@ -972,7 +972,7 @@ export const DeviceDetail: React.FC = () => {
                     <div className="flex gap-2 items-end">
                       <Input
                         type="number"
-                        label={t('device.timerMinutes') || 'Daqiqa'}
+                        label={t('device.timerMinutes')}
                         placeholder="0"
                         value={timerMinutes}
                         onValueChange={setTimerMinutes}
@@ -990,7 +990,7 @@ export const DeviceDetail: React.FC = () => {
                       </span>
                       <Input
                         type="number"
-                        label={t('device.timerSeconds') || 'Soniya'}
+                        label={t('device.timerSeconds')}
                         placeholder="0"
                         value={timerSeconds}
                         onValueChange={(value) => {
@@ -1022,10 +1022,7 @@ export const DeviceDetail: React.FC = () => {
                         if (timerMinutes || timerSeconds) {
                           handleSetTimer();
                         } else {
-                          setCommandError(
-                            t('device.timerRequired') ||
-                              'Timer qiymati kiritilishi kerak'
-                          );
+                          setCommandError(t('device.timerRequired'));
                         }
                       }}
                       isDisabled={isDeviceOffline || isSendingCommand}

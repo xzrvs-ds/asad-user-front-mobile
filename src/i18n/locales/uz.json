@@ -68,6 +68,9 @@
     "height": "Balandlik (sm)",
     "setTimer": "Timer o'rnatish",
     "timer": "Timer (soniya)",
+    "timerMinutes": "Daqiqa",
+    "timerSeconds": "Soniya",
+    "timerRequired": "Timer qiymati kiritilishi kerak",
     "switchMotor": "Nasosni almashtirish",
     "motor1": "Nasos 1",
     "motor2": "Nasos 2",
@@ -124,6 +127,21 @@
     "totalEnergy": "Jami elektr",
     "totalWater": "Jami suv",
     "weekPeriod": "Hafta davri",
-    "noData": "Ma'lumot topilmadi"
+    "noData": "Ma'lumot topilmadi",
+    "downloadPDF": "PDF yuklash"
+  },
+  "settings": {
+    "title": "Sozlamalar",
+    "primaryColor": "Asosiy rang",
+    "primaryColorDescription": "Ilovaning asosiy rangini tanlang",
+    "selectColor": "Rangni tanlang",
+    "language": "Til",
+    "languageDescription": "Ilova tilini tanlang",
+    "selectLanguage": "Tilni tanlang",
+    "downloadedFiles": "Yuklangan fayllar",
+    "downloadedFilesDescription": "Yuklangan PDF hisobotlar",
+    "noFiles": "Yuklangan fayllar yo'q",
+    "openFile": "Faylni ochish",
+    "deleteFile": "O'chirish"
   }
 }

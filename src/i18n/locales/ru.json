@@ -68,6 +68,9 @@
     "height": "Высота (см)",
     "setTimer": "Установить таймер",
     "timer": "Таймер (секунды)",
+    "timerMinutes": "Минуты",
+    "timerSeconds": "Секунды",
+    "timerRequired": "Необходимо указать значение таймера",
     "switchMotor": "Переключить насос",
     "motor1": "Насос 1",
     "motor2": "Насос 2",
@@ -121,6 +124,21 @@
     "totalEnergy": "Всего энергии",
     "totalWater": "Всего воды",
     "weekPeriod": "Период недели",
-    "noData": "Данные недоступны"
+    "noData": "Данные недоступны",
+    "downloadPDF": "Скачать PDF"
+  },
+  "settings": {
+    "title": "Настройки",
+    "primaryColor": "Основной цвет",
+    "primaryColorDescription": "Выберите основной цвет приложения",
+    "selectColor": "Выберите цвет",
+    "language": "Язык",
+    "languageDescription": "Выберите язык приложения",
+    "selectLanguage": "Выберите язык",
+    "downloadedFiles": "Загруженные файлы",
+    "downloadedFilesDescription": "Загруженные PDF отчеты",
+    "noFiles": "Нет загруженных файлов",
+    "openFile": "Открыть файл",
+    "deleteFile": "Удалить"
   }
 }

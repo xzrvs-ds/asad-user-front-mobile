@@ -126,6 +126,17 @@ class ApiClient {
     return data;
   }
 
+  async updateDevice(deviceId: string, deviceData: {
+    name?: string;
+    location?: string;
+  }): Promise<Device> {
+    const { data } = await this.client.patch<Device>(
+      `/devices/${deviceId}`,
+      deviceData
+    );
+    return data;
+  }
+
   async getUsers(): Promise<User[]> {
     const { data } = await this.client.get<User[]>('/users');
     return data;
