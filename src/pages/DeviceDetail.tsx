@@ -80,6 +80,7 @@ export const DeviceDetail: React.FC = () => {
     null
   );
   const timerEndCommandSentRef = useRef<boolean>(false);
+  const ultrasonicAtTimerStartRef = useRef<boolean | undefined>(undefined);
 
   const clearTimerTickers = useCallback(() => {
     if (timerIntervalRef.current) {
@@ -107,6 +108,10 @@ export const DeviceDetail: React.FC = () => {
     if (!active || duration <= 0) {
       clearTimerTickers();
       setTimerRemaining(0);
+      // Clear flag when timer is cleared
+      if (!active) {
+        ultrasonicAtTimerStartRef.current = undefined;
+      }
       return;
     }
 
@@ -162,32 +167,40 @@ export const DeviceDetail: React.FC = () => {
       timerEndCommandSentRef.current = false; // Reset on error to allow retry
     });
 
-    // After 1 second, re-enable ultrasonic
-    timerRefetchTimeoutRef.current = setTimeout(async () => {
-      try {
-        // Send command to re-enable ultrasonic
-        await api.sendDeviceCommand(id, {
-          ultrasonic: true
-        });
-
-        // Refetch to get latest state
-        const data = await api.getDevice(id);
-        setDevice(data);
-        updateDevice(data);
-        timerEndCommandSentRef.current = false; // Reset after successful refetch
-      } catch (err) {
-        console.error('Failed to re-enable ultrasonic:', err);
-        // Still refetch to get latest state
+    // After 1 second, re-enable ultrasonic ONLY if it was true when timer started
+    if (ultrasonicAtTimerStartRef.current === true) {
+      timerRefetchTimeoutRef.current = setTimeout(async () => {
         try {
+          // Send command to re-enable ultrasonic
+          await api.sendDeviceCommand(id, {
+            ultrasonic: true
+          });
+
+          // Refetch to get latest state
           const data = await api.getDevice(id);
           setDevice(data);
           updateDevice(data);
-        } catch {
-          // ignore
+          timerEndCommandSentRef.current = false; // Reset after successful refetch
+          ultrasonicAtTimerStartRef.current = undefined; // Clear the flag
+        } catch (err) {
+          console.error('Failed to re-enable ultrasonic:', err);
+          // Still refetch to get latest state
+          try {
+            const data = await api.getDevice(id);
+            setDevice(data);
+            updateDevice(data);
+          } catch {
+            // ignore
+          }
+          timerEndCommandSentRef.current = false;
+          ultrasonicAtTimerStartRef.current = undefined; // Clear the flag
         }
-        timerEndCommandSentRef.current = false;
-      }
-    }, 1000);
+      }, 1000);
+    } else {
+      // Clear the flag if ultrasonic was false when timer started
+      ultrasonicAtTimerStartRef.current = undefined;
+      timerEndCommandSentRef.current = false;
+    }
   }, [
     timerRemaining,
     device,
@@ -474,6 +487,9 @@ export const DeviceDetail: React.FC = () => {
       // Timer requirement:
       // - start countdown immediately (00:05 -> 00:04 ...)
       // - when saved, motor should be ON (if not already)
+      // Store ultrasonic state when timer is started
+      ultrasonicAtTimerStartRef.current = device.ultrasonic ?? true;
+      
       const optimistic: Device = {
         ...device,
         timerActive: true,
@@ -531,6 +547,8 @@ export const DeviceDetail: React.FC = () => {
                 // If motor turns OFF while timer is active (especially when ultrasonic is true),
                 // clear the timer and set ultrasonic to false
                 if (prev.timerActive && finalDevice.motorState === 'OFF' && prev.motorState === 'ON') {
+                  const wasUltrasonicTrue = prev.ultrasonic === true;
+                  
                   finalDevice = {
                     ...finalDevice,
                     timerActive: false,
@@ -539,6 +557,7 @@ export const DeviceDetail: React.FC = () => {
                   };
                   setTimerRemaining(0);
                   clearTimerTickers();
+                  ultrasonicAtTimerStartRef.current = undefined; // Clear flag when timer is cleared
                   
                   // Send command to backend: timer clear + ultrasonic false
                   api.sendDeviceCommand(id, {
@@ -547,6 +566,74 @@ export const DeviceDetail: React.FC = () => {
                   }).catch((err) => {
                     console.error('Failed to send timer clear command:', err);
                   });
+
+                  // If ultrasonic was true, re-enable it after 1 second
+                  if (wasUltrasonicTrue) {
+                    // Clear any existing timeout
+                    if (timerRefetchTimeoutRef.current) {
+                      clearTimeout(timerRefetchTimeoutRef.current);
+                    }
+                    
+                    timerRefetchTimeoutRef.current = setTimeout(async () => {
+                      try {
+                        await api.sendDeviceCommand(id, {
+                          ultrasonic: true
+                        });
+                        
+                        // Refetch to get latest state
+                        const data = await api.getDevice(id);
+                        setDevice(data);
+                        updateDevice(data);
+                      } catch (err) {
+                        console.error('Failed to re-enable ultrasonic:', err);
+                        // Still refetch to get latest state
+                        try {
+                          const data = await api.getDevice(id);
+                          setDevice(data);
+                          updateDevice(data);
+                        } catch {
+                          // ignore
+                        }
+                      }
+                    }, 1000);
+                  }
+                }
+
+                // If timer is manually turned off while ultrasonic is true (timer was active, now inactive)
+                if (prev.timerActive && !finalDevice.timerActive && prev.ultrasonic === true && finalDevice.motorState === 'OFF') {
+                  // Clear any existing timeout
+                  if (timerRefetchTimeoutRef.current) {
+                    clearTimeout(timerRefetchTimeoutRef.current);
+                  }
+                  
+                  // Clear flag when timer is manually turned off
+                  ultrasonicAtTimerStartRef.current = undefined;
+                  
+                  // If ultrasonic is false, re-enable it after 1 second
+                  if (finalDevice.ultrasonic === false) {
+                    timerRefetchTimeoutRef.current = setTimeout(async () => {
+                      try {
+                        await api.sendDeviceCommand(id, {
+                          ultrasonic: true
+                        });
+                        
+                        // Refetch to get latest state
+                        const data = await api.getDevice(id);
+                        setDevice(data);
+                        updateDevice(data);
+                      } catch (err) {
+                        console.error('Failed to re-enable ultrasonic:', err);
+                        // Still refetch to get latest state
+                        try {
+                          const data = await api.getDevice(id);
+                          setDevice(data);
+                          updateDevice(data);
+                        } catch {
+                          // ignore
+                        }
+                      }
+                    }, 1000);
+                  }
                 }
                 
                 // Store'ni ham darhol yangilash
@@ -608,11 +695,14 @@ export const DeviceDetail: React.FC = () => {
                 // If motor turns OFF while timer is active (especially when ultrasonic is true),
                 // clear the timer and set ultrasonic to false
                 if (prev.timerActive && updated.motorState === 'OFF' && prev.motorState === 'ON') {
+                  const wasUltrasonicTrue = prev.ultrasonic === true;
+                  
                   updated.timerActive = false;
                   updated.timerDuration = 0;
                   updated.ultrasonic = false;
                   setTimerRemaining(0);
                   clearTimerTickers();
+                  ultrasonicAtTimerStartRef.current = undefined; // Clear flag when timer is cleared
                   
                   // Send command to backend: timer clear + ultrasonic false
                   api.sendDeviceCommand(id, {
@@ -621,6 +711,37 @@ export const DeviceDetail: React.FC = () => {
                   }).catch((err) => {
                     console.error('Failed to send timer clear command:', err);
                   });
+
+                  // If ultrasonic was true, re-enable it after 1 second
+                  if (wasUltrasonicTrue) {
+                    // Clear any existing timeout
+                    if (timerRefetchTimeoutRef.current) {
+                      clearTimeout(timerRefetchTimeoutRef.current);
+                    }
+                    
+                    timerRefetchTimeoutRef.current = setTimeout(async () => {
+                      try {
+                        await api.sendDeviceCommand(id, {
+                          ultrasonic: true
+                        });
+                        
+                        // Refetch to get latest state
+                        const data = await api.getDevice(id);
+                        setDevice(data);
+                        updateDevice(data);
+                      } catch (err) {
+                        console.error('Failed to re-enable ultrasonic:', err);
+                        // Still refetch to get latest state
+                        try {
+                          const data = await api.getDevice(id);
+                          setDevice(data);
+                          updateDevice(data);
+                        } catch {
+                          // ignore
+                        }
+                      }
+                    }, 1000);
+                  }
                 }
 
                 // Store'ni ham darhol yangilash

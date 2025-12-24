@@ -15,6 +15,7 @@ class BackgroundMonitorService {
       timerDuration?: number;
       timerStartTime?: Date;
       ultrasonic?: boolean;
+      ultrasonicAtTimerStart?: boolean; // Store ultrasonic state when timer was started
       timerEndCommandSent?: boolean;
       ultrasonicReenableTimeout?: ReturnType<typeof setTimeout>;
     }
@@ -138,6 +139,9 @@ class BackgroundMonitorService {
         lastState.motorState === 'ON'
       ) {
         try {
+          // Store if ultrasonic was true before clearing
+          const wasUltrasonicTrue = lastState.ultrasonic === true;
+
           // Send command to backend: timer clear + ultrasonic false
           await api.sendDeviceCommand(device._id, {
             timer: 0,
@@ -167,9 +171,139 @@ class BackgroundMonitorService {
               ultrasonic: false
             };
           }
+
+          // If ultrasonic was true, re-enable it after 1 second
+          if (wasUltrasonicTrue) {
+            const ultrasonicTimeout = setTimeout(async () => {
+              try {
+                await api.sendDeviceCommand(device._id, {
+                  ultrasonic: true
+                });
+
+                // Update local state
+                const currentState = this.lastDeviceStates.get(device._id);
+                if (currentState) {
+                  this.lastDeviceStates.set(device._id, {
+                    ...currentState,
+                    ultrasonic: true,
+                    ultrasonicReenableTimeout: undefined
+                  });
+                }
+
+                // Update device in array
+                const deviceIdx = this.devices.findIndex(
+                  (d) => d._id === device._id
+                );
+                if (deviceIdx >= 0) {
+                  this.devices[deviceIdx] = {
+                    ...this.devices[deviceIdx],
+                    ultrasonic: true
+                  };
+                }
+              } catch (error) {
+                console.error(
+                  `Failed to re-enable ultrasonic for device ${device._id}:`,
+                  error
+                );
+              }
+            }, 1000);
+
+            // Store timeout reference
+            const currentState = this.lastDeviceStates.get(device._id);
+            if (currentState) {
+              this.lastDeviceStates.set(device._id, {
+                ...currentState,
+                ultrasonicReenableTimeout: ultrasonicTimeout
+              });
+            }
+          }
         } catch (error) {
           console.error(
             `Failed to send timer clear command for device ${device._id}:`,
+            error
+          );
+        }
+      }
+
+      // If timer is manually turned off while ultrasonic is true (timer was active, now inactive, but motor might still be ON)
+      if (
+        lastState?.timerActive &&
+        !currentTimerActive &&
+        lastState.ultrasonic === true &&
+        !lastState.ultrasonicReenableTimeout
+      ) {
+        try {
+          // Send command to backend: ultrasonic false
+          await api.sendDeviceCommand(device._id, {
+            ultrasonic: false
+          });
+
+          // Update local state
+          this.lastDeviceStates.set(device._id, {
+            ...lastState,
+            timerActive: false,
+            ultrasonic: false,
+            timerStartTime: undefined
+          });
+
+          // Update device in array
+          const deviceIndex = this.devices.findIndex(
+            (d) => d._id === device._id
+          );
+          if (deviceIndex >= 0) {
+            this.devices[deviceIndex] = {
+              ...this.devices[deviceIndex],
+              timerActive: false,
+              ultrasonic: false
+            };
+          }
+
+          // After 1 second, re-enable ultrasonic
+          const ultrasonicTimeout = setTimeout(async () => {
+            try {
+              await api.sendDeviceCommand(device._id, {
+                ultrasonic: true
+              });
+
+              // Update local state
+              const currentState = this.lastDeviceStates.get(device._id);
+              if (currentState) {
+                this.lastDeviceStates.set(device._id, {
+                  ...currentState,
+                  ultrasonic: true,
+                  ultrasonicReenableTimeout: undefined
+                });
+              }
+
+              // Update device in array
+              const deviceIdx = this.devices.findIndex(
+                (d) => d._id === device._id
+              );
+              if (deviceIdx >= 0) {
+                this.devices[deviceIdx] = {
+                  ...this.devices[deviceIdx],
+                  ultrasonic: true
+                };
+              }
+            } catch (error) {
+              console.error(
+                `Failed to re-enable ultrasonic for device ${device._id}:`,
+                error
+              );
+            }
+          }, 1000);
+
+          // Store timeout reference
+          const currentState = this.lastDeviceStates.get(device._id);
+          if (currentState) {
+            this.lastDeviceStates.set(device._id, {
+              ...currentState,
+              ultrasonicReenableTimeout: ultrasonicTimeout
+            });
+          }
+        } catch (error) {
+          console.error(
+            `Failed to handle timer off with ultrasonic true for device ${device._id}:`,
             error
           );
         }
@@ -195,6 +329,16 @@ class BackgroundMonitorService {
             ? new Date(Date.now() - currentTimerDuration * 1000)
             : lastState?.timerStartTime,
         ultrasonic: device.ultrasonic ?? true,
+        // Store ultrasonic state when timer is newly started
+        ultrasonicAtTimerStart:
+          // If timer is newly started, store current ultrasonic state
+          currentTimerActive && !lastState?.timerActive
+            ? device.ultrasonic ?? true
+            : // If timer was cleared, clear the flag
+            !currentTimerActive && lastState?.timerActive
+            ? undefined
+            : // Otherwise keep existing value
+              lastState?.ultrasonicAtTimerStart,
         timerEndCommandSent:
           // Reset flag if timer is newly started or timer was cleared
           (!currentTimerActive && lastState?.timerActive) ||
@@ -276,48 +420,60 @@ class BackgroundMonitorService {
             };
           }
 
-          // After 1 second, re-enable ultrasonic
-          const ultrasonicTimeout = setTimeout(async () => {
-            try {
-              await api.sendDeviceCommand(device._id, {
-                ultrasonic: true
-              });
-
-              // Update local state
-              const currentState = this.lastDeviceStates.get(device._id);
-              if (currentState) {
-                this.lastDeviceStates.set(device._id, {
-                  ...currentState,
-                  ultrasonic: true,
-                  ultrasonicReenableTimeout: undefined
-                });
-              }
-
-              // Update device in array
-              const deviceIdx = this.devices.findIndex(
-                (d) => d._id === device._id
-              );
-              if (deviceIdx >= 0) {
-                this.devices[deviceIdx] = {
-                  ...this.devices[deviceIdx],
+          // After 1 second, re-enable ultrasonic ONLY if it was true when timer started
+          if (lastState.ultrasonicAtTimerStart === true) {
+            const ultrasonicTimeout = setTimeout(async () => {
+              try {
+                await api.sendDeviceCommand(device._id, {
                   ultrasonic: true
-                };
-              }
-            } catch (error) {
-              console.error(
-                `Failed to re-enable ultrasonic for device ${device._id}:`,
-                error
-              );
-            }
-          }, 1000);
+                });
 
-          // Store timeout reference
-          const currentState = this.lastDeviceStates.get(device._id);
-          if (currentState) {
-            this.lastDeviceStates.set(device._id, {
-              ...currentState,
-              ultrasonicReenableTimeout: ultrasonicTimeout
-            });
+                // Update local state
+                const currentState = this.lastDeviceStates.get(device._id);
+                if (currentState) {
+                  this.lastDeviceStates.set(device._id, {
+                    ...currentState,
+                    ultrasonic: true,
+                    ultrasonicReenableTimeout: undefined,
+                    ultrasonicAtTimerStart: undefined
+                  });
+                }
+
+                // Update device in array
+                const deviceIdx = this.devices.findIndex(
+                  (d) => d._id === device._id
+                );
+                if (deviceIdx >= 0) {
+                  this.devices[deviceIdx] = {
+                    ...this.devices[deviceIdx],
+                    ultrasonic: true
+                  };
+                }
+              } catch (error) {
+                console.error(
+                  `Failed to re-enable ultrasonic for device ${device._id}:`,
+                  error
+                );
+              }
+            }, 1000);
+
+            // Store timeout reference
+            const currentState = this.lastDeviceStates.get(device._id);
+            if (currentState) {
+              this.lastDeviceStates.set(device._id, {
+                ...currentState,
+                ultrasonicReenableTimeout: ultrasonicTimeout
+              });
+            }
+          } else {
+            // Clear the flag if ultrasonic was false when timer started
+            const currentState = this.lastDeviceStates.get(device._id);
+            if (currentState) {
+              this.lastDeviceStates.set(device._id, {
+                ...currentState,
+                ultrasonicAtTimerStart: undefined
+              });
+            }
           }
         } catch (error) {
           console.error(
