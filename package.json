@@ -20,10 +20,10 @@
     "test:full": "npm run test:build && npm run cap:sync && npm run test:gradle"
   },
   "dependencies": {
-    "@capacitor/android": "^8.0.0",
+    "@capacitor/android": "^7.4.4",
     "@capacitor/app": "^5.0.6",
     "@capacitor/browser": "^8.0.0",
-    "@capacitor/core": "^8.0.0",
+    "@capacitor/core": "^7.4.4",
     "@capacitor/filesystem": "^8.0.0",
     "@capacitor/ios": "^5.5.1",
     "@capacitor/preferences": "^5.0.6",
