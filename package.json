@@ -8,16 +8,20 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "cap:sync": "cap sync",
+    "cap:sync": "cap sync && node scripts/patch-capacitor-build-gradle.cjs",
     "cap:ios": "cap open ios",
     "cap:android": "cap open android",
+    "postinstall": "node scripts/patch-capacitor-android.cjs && node scripts/patch-capacitor-build-gradle.cjs",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "test:android": "./scripts/test-android.sh",
+    "test:ci": "./scripts/test-ci.sh",
     "test:build": "npm run build && npm run lint",
     "test:gradle": "cd android && ./gradlew clean assembleDebug",
-    "test:full": "npm run test:build && npm run cap:sync && npm run test:gradle"
+    "test:gradle:ci": "cd android && ./gradlew clean assembleDebug --no-daemon",
+    "test:full": "npm run test:build && npm run cap:sync && npm run test:gradle",
+    "test:full:ci": "npm run test:build && npm run cap:sync && npm run test:gradle:ci"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",
@@ -49,7 +53,7 @@
     "zustand": "^4.4.7"
   },
   "devDependencies": {
-    "@capacitor/cli": "^8.0.0",
+    "@capacitor/cli": "^7.4.4",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^14.1.2",
     "@testing-library/user-event": "^14.5.1",

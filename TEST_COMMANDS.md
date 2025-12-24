@@ -4,6 +4,8 @@ Appflow ga yuklashdan oldin barcha testlarni terminal orqali o'tkazish.
 
 ## 🚀 Tezkor Test (Barcha testlar)
 
+### Android Studio SDK BOR bo'lsa:
+
 ```bash
 # To'liq test (build + lint + sync + gradle)
 npm run test:full
@@ -17,6 +19,17 @@ npm run test:android
 # yoki
 ./scripts/test-android.sh
 ```
+
+### Android Studio SDK YO'Q bo'lsa (CI/CD yoki Appflow):
+
+```bash
+# CI/CD uchun optimallashtirilgan test (SDK avtomatik yuklanadi)
+npm run test:ci
+# yoki
+./scripts/test-ci.sh
+```
+
+**Eslatma:** Gradle wrapper SDK ni avtomatik yuklab oladi, shuning uchun Android Studio SDK o'rnatilgan bo'lishi shart emas. Faqat Java 17+ kerak.
 
 ## 📝 Alohida Testlar
 
