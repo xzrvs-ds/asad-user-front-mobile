@@ -128,7 +128,7 @@ export const DeviceDetail: React.FC = () => {
     clearTimerTickers
   ]);
 
-  // When countdown ends: turn motor OFF, timer OFF, ultrasonic false, then after 1s ultrasonic true
+  // When countdown ends: different behavior based on ultrasonic state
   useEffect(() => {
     if (!device?.timerActive) {
       timerEndCommandSentRef.current = false;
@@ -146,53 +146,48 @@ export const DeviceDetail: React.FC = () => {
 
     clearTimerTickers();
 
-    // Optimistic update: motor OFF, timer OFF, ultrasonic false
-    const optimistic: Device = {
-      ...device,
-      timerActive: false,
-      timerDuration: 0,
-      motorState: 'OFF',
-      ultrasonic: false
-    };
-    setDevice(optimistic);
-    updateDevice(optimistic);
-
-    // Send command to backend: motor OFF + timer OFF + ultrasonic false
-    api.sendDeviceCommand(id, {
-      motor: 'OFF',
-      timer: 0,
-      ultrasonic: false
-    }).catch((err) => {
-      console.error('Failed to send timer end command:', err);
-      timerEndCommandSentRef.current = false; // Reset on error to allow retry
-    });
-
     // Store ultrasonic state at timer end (before sending commands)
     const wasUltrasonicTrueAtTimerEnd = device.ultrasonic === true;
 
-    // After 1 second, re-enable ultrasonic ONLY if it was true when timer ended
-    // AND only if motor is OFF and ultrasonic is FALSE after timer ends
     if (wasUltrasonicTrueAtTimerEnd) {
+      // CASE 2: Ultrasonic true bo'lsa
+      // Motor OFF, timer OFF, ultrasonic false, keyin 1 soniyadan keyin ultrasonic true
+      const optimistic: Device = {
+        ...device,
+        timerActive: false,
+        timerDuration: 0,
+        motorState: 'OFF',
+        ultrasonic: false
+      };
+      setDevice(optimistic);
+      updateDevice(optimistic);
+
+      // Send command to backend: motor OFF + timer OFF + ultrasonic false
+      api.sendDeviceCommand(id, {
+        motor: 'OFF',
+        timer: 0,
+        ultrasonic: false
+      }).catch((err) => {
+        console.error('Failed to send timer end command:', err);
+        timerEndCommandSentRef.current = false;
+      });
+
+      // After 1 second, re-enable ultrasonic
       timerRefetchTimeoutRef.current = setTimeout(async () => {
         try {
-          // Refetch to get latest state first
           const latestData = await api.getDevice(id);
           
-          // Check if motor is OFF and ultrasonic is FALSE before re-enabling
           if (latestData.motorState === 'OFF' && latestData.ultrasonic === false) {
-            // Send command to re-enable ultrasonic
             await api.sendDeviceCommand(id, {
               ultrasonic: true
             });
 
-            // Refetch to get latest state
             const data = await api.getDevice(id);
             setDevice(data);
             updateDevice(data);
-            timerEndCommandSentRef.current = false; // Reset after successful refetch
-            ultrasonicAtTimerStartRef.current = undefined; // Clear the flag
+            timerEndCommandSentRef.current = false;
+            ultrasonicAtTimerStartRef.current = undefined;
           } else {
-            // Motor is ON or ultrasonic is already true, just refetch
             setDevice(latestData);
             updateDevice(latestData);
             timerEndCommandSentRef.current = false;
@@ -200,7 +195,6 @@ export const DeviceDetail: React.FC = () => {
           }
         } catch (err) {
           console.error('Failed to re-enable ultrasonic:', err);
-          // Still refetch to get latest state
           try {
             const data = await api.getDevice(id);
             setDevice(data);
@@ -209,12 +203,33 @@ export const DeviceDetail: React.FC = () => {
             // ignore
           }
           timerEndCommandSentRef.current = false;
-          ultrasonicAtTimerStartRef.current = undefined; // Clear the flag
+          ultrasonicAtTimerStartRef.current = undefined;
         }
       }, 1000);
     } else {
-      // If ultrasonic was false when timer ended, it should NOT become true
-      // Clear the flag
+      // CASE 1: Ultrasonic false bo'lsa
+      // Motor OFF, timer OFF, ultrasonic false bo'lib qoladi (o'zgartirilmaydi)
+      const optimistic: Device = {
+        ...device,
+        timerActive: false,
+        timerDuration: 0,
+        motorState: 'OFF'
+        // ultrasonic o'zgartirilmaydi - false bo'lib qoladi
+      };
+      setDevice(optimistic);
+      updateDevice(optimistic);
+
+      // Send command to backend: motor OFF + timer OFF (ultrasonic o'zgartirilmaydi)
+      api.sendDeviceCommand(id, {
+        motor: 'OFF',
+        timer: 0
+        // ultrasonic o'zgartirilmaydi
+      }).catch((err) => {
+        console.error('Failed to send timer end command:', err);
+        timerEndCommandSentRef.current = false;
+      });
+
+      // Ultrasonic re-enable qilish kerak emas
       ultrasonicAtTimerStartRef.current = undefined;
       timerEndCommandSentRef.current = false;
     }
@@ -709,56 +724,26 @@ export const DeviceDetail: React.FC = () => {
                       : prev.motorState
                 };
                 
-                // If motor turns OFF while timer is active (especially when ultrasonic is true),
-                // clear the timer and set ultrasonic to false
+                // If motor turns OFF while timer is active (ultrasonic motor'ni o'chirganda)
+                // clear the timer, but ultrasonic o'zgartirilmaydi (u o'z vazifasini bajarayotgan)
                 if (prev.timerActive && updated.motorState === 'OFF' && prev.motorState === 'ON') {
-                  const wasUltrasonicTrue = prev.ultrasonic === true;
-                  
+                  // Timer tozalanadi, lekin ultrasonic o'zgartirilmaydi
                   updated.timerActive = false;
                   updated.timerDuration = 0;
-                  updated.ultrasonic = false;
+                  // ultrasonic o'zgartirilmaydi - u o'z vazifasini bajarayotgan
                   setTimerRemaining(0);
                   clearTimerTickers();
-                  ultrasonicAtTimerStartRef.current = undefined; // Clear flag when timer is cleared
+                  ultrasonicAtTimerStartRef.current = undefined;
                   
-                  // Send command to backend: timer clear + ultrasonic false
+                  // Send command to backend: faqat timer tozalash
                   api.sendDeviceCommand(id, {
-                    timer: 0,
-                    ultrasonic: false
+                    timer: 0
+                    // ultrasonic o'zgartirilmaydi
                   }).catch((err) => {
                     console.error('Failed to send timer clear command:', err);
                   });
 
-                  // If ultrasonic was true, re-enable it after 1 second
-                  if (wasUltrasonicTrue) {
-                    // Clear any existing timeout
-                    if (timerRefetchTimeoutRef.current) {
-                      clearTimeout(timerRefetchTimeoutRef.current);
-                    }
-                    
-                    timerRefetchTimeoutRef.current = setTimeout(async () => {
-                      try {
-                        await api.sendDeviceCommand(id, {
-                          ultrasonic: true
-                        });
-                        
-                        // Refetch to get latest state
-                        const data = await api.getDevice(id);
-                        setDevice(data);
-                        updateDevice(data);
-                      } catch (err) {
-                        console.error('Failed to re-enable ultrasonic:', err);
-                        // Still refetch to get latest state
-                        try {
-                          const data = await api.getDevice(id);
-                          setDevice(data);
-                          updateDevice(data);
-                        } catch {
-                          // ignore
-                        }
-                      }
-                    }, 1000);
-                  }
+                  // Ultrasonic re-enable qilish kerak emas, chunki u zaten true bo'lib qolishi kerak
                 }
 
                 // Store'ni ham darhol yangilash
